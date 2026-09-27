@@ -1,0 +1,1 @@
+"""Telegram anti-spam bot."""

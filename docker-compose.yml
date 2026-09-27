@@ -5,3 +5,8 @@ services:
     environment:
       BOT_TOKEN: "${BOT_TOKEN}"
       BLOCKED_CHANNEL_IDS: "${BLOCKED_CHANNEL_IDS}"
+      ADMIN_USER_IDS: "${ADMIN_USER_IDS:-}"
+      DATABASE_PATH: "${DATABASE_PATH:-data/bot.sqlite3}"
+      RESPONSE_TEXT: "${RESPONSE_TEXT:-ЕГОР НЕ СПАМЬ ХУЙНЕЙ}"
+    volumes:
+      - ./data:/app/data

@@ -108,7 +108,10 @@ async def test_topor_in_text_or_caption_gets_reply(
     caption: str | None,
 ) -> None:
     handlers = make_handlers(tmp_path)
+    handlers._blocklist.is_user_blocked = AsyncMock(return_value=True)
     message = SimpleNamespace(
+        chat_id=-2001,
+        from_user=SimpleNamespace(id=42),
         text=text,
         caption=caption,
         forward_origin=None,
@@ -130,6 +133,8 @@ async def test_topor_in_text_or_caption_gets_reply(
 async def test_topor_must_be_a_separate_word(tmp_path: Path, text: str) -> None:
     handlers = make_handlers(tmp_path)
     message = SimpleNamespace(
+        chat_id=-2001,
+        from_user=SimpleNamespace(id=42),
         text=text,
         caption=None,
         forward_origin=None,
@@ -142,5 +147,29 @@ async def test_topor_must_be_a_separate_word(tmp_path: Path, text: str) -> None:
         SimpleNamespace(),
     )
 
+    message.reply_text.assert_not_awaited()
+    message.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_topor_from_unblocked_user_is_ignored(tmp_path: Path) -> None:
+    handlers = make_handlers(tmp_path)
+    handlers._blocklist.is_user_blocked = AsyncMock(return_value=False)
+    message = SimpleNamespace(
+        chat_id=-2001,
+        from_user=SimpleNamespace(id=99),
+        text="ТОПОР",
+        caption=None,
+        forward_origin=None,
+        reply_text=AsyncMock(),
+        delete=AsyncMock(),
+    )
+
+    await handlers.handle_message(
+        SimpleNamespace(effective_message=message),
+        SimpleNamespace(),
+    )
+
+    handlers._blocklist.is_user_blocked.assert_awaited_once_with(-2001, 99)
     message.reply_text.assert_not_awaited()
     message.delete.assert_not_awaited()

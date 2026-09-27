@@ -318,7 +318,15 @@ class BotHandlers:
         if message is None:
             return
 
-        if await self._handle_topor(message):
+        content = message.text or message.caption
+        sender = message.from_user
+        if (
+            content is not None
+            and TOPOR_PATTERN.search(content) is not None
+            and sender is not None
+            and await self._blocklist.is_user_blocked(message.chat_id, sender.id)
+        ):
+            await self._handle_topor(message)
             return
 
         forward_origin = message.forward_origin
@@ -347,7 +355,6 @@ class BotHandlers:
         channel_id = forward_origin.chat.id
         if not await self._blocklist.is_blocked(message.chat_id, channel_id):
             return
-        sender = message.from_user
         if not await self._blocklist.should_moderate_user(
             message.chat_id,
             sender.id if sender is not None else None,
@@ -492,10 +499,7 @@ class BotHandlers:
         )
 
     @staticmethod
-    async def _handle_topor(message: Message) -> bool:
-        content = message.text or message.caption
-        if content is None or TOPOR_PATTERN.search(content) is None:
-            return False
+    async def _handle_topor(message: Message) -> None:
         try:
             await message.reply_text(TOPOR_RESPONSE)
         except TelegramError:
@@ -504,7 +508,6 @@ class BotHandlers:
             await message.delete()
         except TelegramError:
             logger.exception("Failed to delete message containing 'топор'")
-        return True
 
     @staticmethod
     def _resolve_user_id(

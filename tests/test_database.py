@@ -105,12 +105,15 @@ async def test_targeted_user_filter_preserves_legacy_mode_until_enabled(
 
     assert await repository.add_blocked_user(-2001, 42, 7)
     assert not await repository.add_blocked_user(-2001, 42, 7)
+    assert await repository.is_user_blocked(-2001, 42)
+    assert not await repository.is_user_blocked(-2001, 99)
     assert await repository.should_moderate_user(-2001, 42)
     assert not await repository.should_moderate_user(-2001, 99)
     assert not await repository.should_moderate_user(-2001, None)
     assert await repository.list_blocked_users(-2001) == [ChatUser(42, None, "")]
 
     assert await repository.remove_blocked_user(-2001, 42)
+    assert not await repository.is_user_blocked(-2001, 42)
     assert not await repository.should_moderate_user(-2001, 42)
     await repository.close()
 

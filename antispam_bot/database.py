@@ -283,6 +283,18 @@ class BlocklistRepository:
             )
             return [ChatUser(*row) for row in await cursor.fetchall()]
 
+    async def is_user_blocked(self, chat_id: int, user_id: int) -> bool:
+        async with self._lock:
+            connection = self._require_connection()
+            cursor = await connection.execute(
+                """
+                SELECT 1 FROM blocked_users
+                WHERE chat_id = ? AND user_id = ?
+                """,
+                (chat_id, user_id),
+            )
+            return await cursor.fetchone() is not None
+
     async def should_moderate_user(
         self,
         chat_id: int,

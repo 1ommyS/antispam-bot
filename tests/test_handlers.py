@@ -113,6 +113,7 @@ async def test_topor_in_text_or_caption_gets_reply(
         caption=caption,
         forward_origin=None,
         reply_text=AsyncMock(),
+        delete=AsyncMock(),
     )
 
     await handlers.handle_message(
@@ -121,6 +122,7 @@ async def test_topor_in_text_or_caption_gets_reply(
     )
 
     message.reply_text.assert_awaited_once_with(TOPOR_RESPONSE)
+    message.delete.assert_awaited_once_with()
 
 
 @pytest.mark.asyncio
@@ -132,6 +134,7 @@ async def test_topor_must_be_a_separate_word(tmp_path: Path, text: str) -> None:
         caption=None,
         forward_origin=None,
         reply_text=AsyncMock(),
+        delete=AsyncMock(),
     )
 
     await handlers.handle_message(
@@ -140,3 +143,4 @@ async def test_topor_must_be_a_separate_word(tmp_path: Path, text: str) -> None:
     )
 
     message.reply_text.assert_not_awaited()
+    message.delete.assert_not_awaited()

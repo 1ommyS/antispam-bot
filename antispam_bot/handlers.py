@@ -318,7 +318,8 @@ class BotHandlers:
         if message is None:
             return
 
-        await self._reply_to_topor(message)
+        if await self._handle_topor(message):
+            return
 
         forward_origin = message.forward_origin
         if forward_origin is None:
@@ -491,14 +492,19 @@ class BotHandlers:
         )
 
     @staticmethod
-    async def _reply_to_topor(message: Message) -> None:
+    async def _handle_topor(message: Message) -> bool:
         content = message.text or message.caption
         if content is None or TOPOR_PATTERN.search(content) is None:
-            return
+            return False
         try:
             await message.reply_text(TOPOR_RESPONSE)
         except TelegramError:
             logger.exception("Failed to reply to message containing 'топор'")
+        try:
+            await message.delete()
+        except TelegramError:
+            logger.exception("Failed to delete message containing 'топор'")
+        return True
 
     @staticmethod
     def _resolve_user_id(

@@ -1,0 +1,24 @@
+[project]
+name = "antispam-bot"
+version = "0.1.0"
+description = "Telegram bot that removes forwarded posts from blocked channels"
+readme = "readme.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aiosqlite>=0.21.0,<1",
+    "python-telegram-bot==22.5",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0,<10",
+    "pytest-asyncio>=1.2.0,<2",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]

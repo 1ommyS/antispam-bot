@@ -27,7 +27,7 @@ BLOCKED_CHANNEL_IDS = {
     if chat_id.strip()
 }
 
-RESPONSE_TEXT = "ЕГОР НЕ СПАМЬ ХУЕТОЙ"
+RESPONSE_TEXT = "ЕГОР НЕ СПАМЬ ХУЙНЕЙ"
 
 
 async def handle_chat_id(
@@ -56,6 +56,26 @@ async def handle_message(
 
     # Канал, из которого сообщение было переслано
     forward_origin = message.forward_origin
+
+    if forward_origin is None:
+        return
+
+    origin_chat = getattr(forward_origin, "chat", None) or getattr(
+        forward_origin,
+        "sender_chat",
+        None,
+    )
+    origin_user = getattr(forward_origin, "sender_user", None)
+
+    logger.info(
+        "Forwarded message IDs: message_id=%s, chat_id=%s, "
+        "source_message_id=%s, source_chat_id=%s, source_user_id=%s",
+        message.message_id,
+        message.chat_id,
+        getattr(forward_origin, "message_id", None),
+        getattr(origin_chat, "id", None),
+        getattr(origin_user, "id", None),
+    )
 
     if not isinstance(forward_origin, MessageOriginChannel):
         return

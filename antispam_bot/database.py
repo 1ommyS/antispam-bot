@@ -14,6 +14,13 @@ class BlockedChannel:
     title: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class ChatUser:
+    user_id: int
+    username: str | None
+    full_name: str
+
+
 class BlocklistRepository:
     def __init__(
         self,
@@ -54,6 +61,37 @@ class BlocklistRepository:
             CREATE TABLE IF NOT EXISTS initialized_chats (
                 chat_id INTEGER PRIMARY KEY,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        await self._connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS chat_users (
+                chat_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                username TEXT,
+                full_name TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (chat_id, user_id)
+            )
+            """
+        )
+        await self._connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS blocked_users (
+                chat_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                added_by_user_id INTEGER,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (chat_id, user_id)
+            )
+            """
+        )
+        await self._connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_filter_chats (
+                chat_id INTEGER PRIMARY KEY,
+                enabled_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
@@ -150,6 +188,125 @@ class BlocklistRepository:
                 (channel_title, channel_id),
             )
             await connection.commit()
+
+    async def remember_user(
+        self,
+        chat_id: int,
+        user_id: int,
+        username: str | None,
+        full_name: str,
+    ) -> None:
+        async with self._lock:
+            connection = self._require_connection()
+            await connection.execute(
+                """
+                INSERT INTO chat_users (chat_id, user_id, username, full_name)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(chat_id, user_id) DO UPDATE SET
+                    username = excluded.username,
+                    full_name = excluded.full_name,
+                    last_seen_at = CURRENT_TIMESTAMP
+                """,
+                (chat_id, user_id, username, full_name),
+            )
+            await connection.commit()
+
+    async def forget_user(self, chat_id: int, user_id: int) -> None:
+        async with self._lock:
+            connection = self._require_connection()
+            await connection.execute(
+                "DELETE FROM chat_users WHERE chat_id = ? AND user_id = ?",
+                (chat_id, user_id),
+            )
+            await connection.commit()
+
+    async def list_users(self, chat_id: int) -> list[ChatUser]:
+        async with self._lock:
+            connection = self._require_connection()
+            cursor = await connection.execute(
+                """
+                SELECT user_id, username, full_name
+                FROM chat_users
+                WHERE chat_id = ?
+                ORDER BY full_name COLLATE NOCASE, user_id
+                """,
+                (chat_id,),
+            )
+            return [ChatUser(*row) for row in await cursor.fetchall()]
+
+    async def add_blocked_user(
+        self,
+        chat_id: int,
+        user_id: int,
+        added_by: int | None,
+    ) -> bool:
+        async with self._lock:
+            connection = self._require_connection()
+            await connection.execute(
+                "INSERT OR IGNORE INTO user_filter_chats (chat_id) VALUES (?)",
+                (chat_id,),
+            )
+            cursor = await connection.execute(
+                """
+                INSERT OR IGNORE INTO blocked_users (
+                    chat_id, user_id, added_by_user_id
+                ) VALUES (?, ?, ?)
+                """,
+                (chat_id, user_id, added_by),
+            )
+            await connection.commit()
+            return cursor.rowcount > 0
+
+    async def remove_blocked_user(self, chat_id: int, user_id: int) -> bool:
+        async with self._lock:
+            connection = self._require_connection()
+            cursor = await connection.execute(
+                "DELETE FROM blocked_users WHERE chat_id = ? AND user_id = ?",
+                (chat_id, user_id),
+            )
+            await connection.commit()
+            return cursor.rowcount > 0
+
+    async def list_blocked_users(self, chat_id: int) -> list[ChatUser]:
+        async with self._lock:
+            connection = self._require_connection()
+            cursor = await connection.execute(
+                """
+                SELECT blocked_users.user_id, chat_users.username,
+                       COALESCE(chat_users.full_name, '')
+                FROM blocked_users
+                LEFT JOIN chat_users USING (chat_id, user_id)
+                WHERE blocked_users.chat_id = ?
+                ORDER BY blocked_users.user_id
+                """,
+                (chat_id,),
+            )
+            return [ChatUser(*row) for row in await cursor.fetchall()]
+
+    async def should_moderate_user(
+        self,
+        chat_id: int,
+        user_id: int | None,
+    ) -> bool:
+        """Keep legacy all-user filtering until targeted mode is activated."""
+        async with self._lock:
+            connection = self._require_connection()
+            mode_cursor = await connection.execute(
+                "SELECT 1 FROM user_filter_chats WHERE chat_id = ?",
+                (chat_id,),
+            )
+            if await mode_cursor.fetchone() is None:
+                return True
+            if user_id is None:
+                return False
+            user_cursor = await connection.execute(
+                """
+                SELECT 1 FROM blocked_users
+                WHERE chat_id = ? AND user_id = ?
+                """,
+                (chat_id, user_id),
+            )
+            return await user_cursor.fetchone() is not None
 
     async def _initialize_chat(
         self,

@@ -1,0 +1,7 @@
+services:
+  telegram-bot:
+    build: .
+    restart: unless-stopped
+    environment:
+      BOT_TOKEN: "${BOT_TOKEN}"
+      BLOCKED_CHANNEL_IDS: "${BLOCKED_CHANNEL_IDS}"
